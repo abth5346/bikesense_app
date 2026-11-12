@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BikeSense BLE Prototype</title>
+    <title>BikeSense BLE Dashboard</title>
 
     <style>
         :root {
@@ -17,9 +17,7 @@
             --yellow: #f59e0b;
         }
 
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -57,13 +55,8 @@
             border: 1px solid #374151;
         }
 
-        .status.connected {
-            border-color: var(--green);
-        }
-
-        .status.error {
-            border-color: var(--red);
-        }
+        .status.connected { border-color: var(--green); }
+        .status.error { border-color: var(--red); }
 
         button {
             display: block;
@@ -83,9 +76,7 @@
             color: white;
         }
 
-        #connectButton:hover {
-            background: #1d4ed8;
-        }
+        #connectButton:hover { background: #1d4ed8; }
 
         #disconnectButton {
             background: #374151;
@@ -105,6 +96,7 @@
             border-radius: 14px;
             padding: 25px;
             text-align: center;
+            min-width: 0;
         }
 
         .card-title {
@@ -113,9 +105,10 @@
         }
 
         .value {
-            font-size: 42px;
+            font-size: 36px;
             font-weight: bold;
             margin-top: 10px;
+            overflow-wrap: anywhere;
         }
 
         .unit {
@@ -123,9 +116,7 @@
             margin-top: 5px;
         }
 
-        .log-container {
-            margin-top: 30px;
-        }
+        .log-container { margin-top: 30px; }
 
         .log-title {
             color: var(--muted);
@@ -137,721 +128,296 @@
             border-radius: 10px;
             padding: 15px;
             min-height: 160px;
-            max-height: 250px;
+            max-height: 280px;
             overflow-y: auto;
             white-space: pre-wrap;
+            overflow-wrap: anywhere;
             font-family: Consolas, monospace;
             font-size: 13px;
         }
 
         @media (max-width: 600px) {
-            .dashboard {
-                grid-template-columns: 1fr;
-            }
-
-            h1 {
-                font-size: 26px;
-            }
+            .dashboard { grid-template-columns: 1fr; }
+            h1 { font-size: 26px; }
         }
     </style>
 </head>
 
 <body>
-
 <div class="container">
-
     <h1>🚲 BikeSense</h1>
+    <div class="subtitle">BLE Cycling Sensor Dashboard</div>
 
-    <div class="subtitle">
-        BLE Cycling Speed & Cadence Prototype
-    </div>
+    <div id="status" class="status">🔴 Disconnected</div>
 
-    <div id="status" class="status">
-        🔴 Disconnected
-    </div>
-
-    <button id="connectButton">
-        Connect to Bike
-    </button>
-
-    <button id="disconnectButton">
-        Disconnect
-    </button>
+    <button id="connectButton">Connect to Bike</button>
+    <button id="disconnectButton">Disconnect</button>
 
     <div class="dashboard">
-
         <div class="card">
-            <div class="card-title">
-                Speed
-            </div>
-
-            <div id="speed" class="value">
-                --
-            </div>
-
-            <div class="unit">
-                mph
-            </div>
+            <div class="card-title">Speed</div>
+            <div id="speed" class="value">--</div>
+            <div class="unit">mph</div>
         </div>
 
-
         <div class="card">
-            <div class="card-title">
-                Cadence
-            </div>
-
-            <div id="cadence" class="value">
-                --
-            </div>
-
-            <div class="unit">
-                RPM
-            </div>
+            <div class="card-title">Terrain</div>
+            <div id="terrain" class="value">--</div>
+            <div class="unit">Classification</div>
         </div>
 
-
         <div class="card">
-            <div class="card-title">
-                Wheel Revolutions
-            </div>
-
-            <div id="revolutions" class="value">
-                --
-            </div>
-
-            <div class="unit">
-                revolutions
-            </div>
+            <div class="card-title">Acceleration X</div>
+            <div id="accelX" class="value">--</div>
+            <div class="unit">mg</div>
         </div>
 
-
         <div class="card">
-            <div class="card-title">
-                BLE Connection
-            </div>
-
-            <div id="connection" class="value">
-                OFF
-            </div>
-
-            <div class="unit">
-                Bluetooth
-            </div>
+            <div class="card-title">Acceleration Y</div>
+            <div id="accelY" class="value">--</div>
+            <div class="unit">mg</div>
         </div>
 
+        <div class="card">
+            <div class="card-title">Acceleration Z</div>
+            <div id="accelZ" class="value">--</div>
+            <div class="unit">mg</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Battery</div>
+            <div id="battery" class="value">--</div>
+            <div class="unit">percent</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Packet Sequence</div>
+            <div id="sequence" class="value">--</div>
+            <div class="unit">Telemetry packet</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">BLE Connection</div>
+            <div id="connection" class="value">OFF</div>
+            <div class="unit">Bluetooth</div>
+        </div>
     </div>
-
 
     <div class="log-container">
-
-        <div class="log-title">
-            BLE Log
-        </div>
-
-        <div id="log">
-Waiting for connection...
-        </div>
-
+        <div class="log-title">BLE Log</div>
+        <div id="log">Waiting for connection...</div>
     </div>
-
 </div>
 
-
 <script>
+"use strict";
 
-const CSC_SERVICE_UUID =
-    "00001816-0000-1000-8000-00805f9b34fb";
+// Must match the 128-bit UUIDs configured in the EFR32 GATT database.
+const BIKE_SERVICE_UUID =
+    "dc397372-adde-4d47-8149-7ae4eeeb18fa";
 
-const CSC_MEASUREMENT_UUID =
-    "00002a5b-0000-1000-8000-00805f9b34fb";
+const BIKE_TELEMETRY_UUID =
+    "0729d18b-fa96-4e02-a823-ed894186c380";
 
-const WHEEL_CIRCUMFERENCE_M = 2.11;
+// Firmware packet format (12 bytes, little-endian):
+// 0..1  sequence number: uint16
+// 2..3  acceleration X: int16, assumed milli-g
+// 4..5  acceleration Y: int16, assumed milli-g
+// 6..7  acceleration Z: int16, assumed milli-g
+// 8..9  speed: uint16, assumed hundredths of km/h
+// 10    battery percentage: uint8
+// 11    terrain enum: uint8
+
+const TERRAIN_NAMES = {
+    0: "Unknown",
+    1: "Road",
+    2: "Gravel",
+    3: "Trail",
+    4: "Off-road"
+};
 
 let device = null;
 let server = null;
-let measurementCharacteristic = null;
+let bikeService = null;
+let telemetryCharacteristic = null;
 
-let previousWheelRevolutions = null;
-let previousWheelEventTime = null;
-
-let previousCrankRevolutions = null;
-let previousCrankEventTime = null;
-
-
-const statusElement =
-    document.getElementById("status");
-
-const connectButton =
-    document.getElementById("connectButton");
-
-const disconnectButton =
-    document.getElementById("disconnectButton");
-
-const speedElement =
-    document.getElementById("speed");
-
-const cadenceElement =
-    document.getElementById("cadence");
-
-const revolutionsElement =
-    document.getElementById("revolutions");
-
-const connectionElement =
-    document.getElementById("connection");
-
-const logElement =
-    document.getElementById("log");
-
+const statusElement = document.getElementById("status");
+const connectButton = document.getElementById("connectButton");
+const disconnectButton = document.getElementById("disconnectButton");
+const speedElement = document.getElementById("speed");
+const terrainElement = document.getElementById("terrain");
+const accelXElement = document.getElementById("accelX");
+const accelYElement = document.getElementById("accelY");
+const accelZElement = document.getElementById("accelZ");
+const batteryElement = document.getElementById("battery");
+const sequenceElement = document.getElementById("sequence");
+const connectionElement = document.getElementById("connection");
+const logElement = document.getElementById("log");
 
 function log(message) {
-
-    const time =
-        new Date().toLocaleTimeString();
-
-    logElement.textContent +=
-        "\n[" + time + "] " + message;
-
-    logElement.scrollTop =
-        logElement.scrollHeight;
-
+    const time = new Date().toLocaleTimeString();
+    logElement.textContent += `\n[${time}] ${message}`;
+    logElement.scrollTop = logElement.scrollHeight;
     console.log(message);
 }
 
-
-function setStatus(message, type) {
-
-    statusElement.textContent =
-        message;
-
-    statusElement.classList.remove(
-        "connected",
-        "error"
-    );
-
-    if (type) {
-        statusElement.classList.add(type);
-    }
+function setStatus(message, type = "") {
+    statusElement.textContent = message;
+    statusElement.classList.remove("connected", "error");
+    if (type) statusElement.classList.add(type);
 }
 
-
-connectButton.addEventListener(
-    "click",
-    connectToBike
-);
-
-
-disconnectButton.addEventListener(
-    "click",
-    disconnectBike
-);
-
+connectButton.addEventListener("click", connectToBike);
+disconnectButton.addEventListener("click", disconnectBike);
 
 async function connectToBike() {
-
     if (!navigator.bluetooth) {
-
-        setStatus(
-            "Web Bluetooth is not supported",
-            "error"
-        );
-
-        log(
-            "Web Bluetooth is not available in this browser."
-        );
-
+        setStatus("Web Bluetooth is not supported", "error");
+        log("Use a Web Bluetooth-compatible browser such as desktop Chrome or Edge.");
         return;
     }
-
 
     try {
+        log("Opening Bluetooth device picker...");
+        setStatus("Select your BikeSense device...");
 
-        log(
-            "Opening Bluetooth device picker..."
-        );
+        // A service filter requires the peripheral to advertise this service UUID.
+        device = await navigator.bluetooth.requestDevice({
+            filters: [{ services: [BIKE_SERVICE_UUID] }]
+        });
 
-        setStatus(
-            "Select your bike..."
-        );
+        log(`Selected device: ${device.name || "Unnamed device"}`);
 
+        device.addEventListener("gattserverdisconnected", handleDisconnect);
 
-        device =
-            await navigator.bluetooth.requestDevice({
+        setStatus("Connecting...");
+        log("Connecting to GATT server...");
 
-                acceptAllDevices: true,
+        server = await device.gatt.connect();
+        log("GATT connection successful.");
 
-                optionalServices: [
-                    CSC_SERVICE_UUID
-                ]
+        setStatus("Discovering BikeSense service...");
+        bikeService = await server.getPrimaryService(BIKE_SERVICE_UUID);
+        log("BikeSense service found.");
 
-            });
+        telemetryCharacteristic =
+            await bikeService.getCharacteristic(BIKE_TELEMETRY_UUID);
+        log("BikeTelemetry characteristic found.");
 
-
-        log(
-            "Selected device: " +
-            (device.name || "Unnamed device")
-        );
-
-
-        device.addEventListener(
-            "gattserverdisconnected",
-            handleDisconnect
-        );
-
-
-        setStatus(
-            "Connecting..."
-        );
-
-
-        log(
-            "Connecting to GATT server..."
-        );
-
-
-        server =
-            await device.gatt.connect();
-
-
-        log(
-            "GATT connection successful."
-        );
-
-
-        setStatus(
-            "Finding Cycling Speed & Cadence service..."
-        );
-
-
-        const service =
-            await server.getPrimaryService(
-                CSC_SERVICE_UUID
-            );
-
-
-        log(
-            "CSC service found."
-        );
-
-
-        measurementCharacteristic =
-            await service.getCharacteristic(
-                CSC_MEASUREMENT_UUID
-            );
-
-
-        log(
-            "CSC Measurement characteristic found."
-        );
-
-
-        await measurementCharacteristic
-            .startNotifications();
-
-
-        measurementCharacteristic.addEventListener(
+        // Register the event listener before starting notifications so that
+        // the page is ready to receive the first notification.
+        telemetryCharacteristic.addEventListener(
             "characteristicvaluechanged",
-            handleMeasurement
+            handleTelemetry
         );
 
+        await telemetryCharacteristic.startNotifications();
+        log("Notifications enabled; subscribed to BikeTelemetry.");
 
-        setStatus(
-            "🟢 Connected to " +
-            (device.name || "Bike"),
-            "connected"
-        );
+        setStatus(`🟢 Connected to ${device.name || "BikeSense"}`, "connected");
+        connectionElement.textContent = "ON";
+        connectButton.style.display = "none";
+        disconnectButton.style.display = "block";
 
-
-        connectionElement.textContent =
-            "ON";
-
-
-        connectButton.style.display =
-            "none";
-
-
-        disconnectButton.style.display =
-            "block";
-
-
-        log(
-            "BLE connection established."
-        );
-
-
-        log(
-            "Waiting for measurements..."
-        );
-
-
+        log("Waiting for telemetry packets...");
     } catch (error) {
-
         console.error(error);
+        log(`ERROR: ${error.name}: ${error.message}`);
+        setStatus("🔴 Connection failed", "error");
 
-        log(
-            "ERROR: " + error.message
-        );
-
-        setStatus(
-            "🔴 Connection failed",
-            "error"
-        );
-
-    }
-
-}
-
-
-function handleMeasurement(event) {
-
-    const data =
-        event.target.value;
-
-    if (data.byteLength < 1) {
-        return;
-    }
-
-
-    const flags =
-        data.getUint8(0);
-
-
-    let offset = 1;
-
-
-    if (flags & 0x01) {
-
-        if (data.byteLength < offset + 6) {
-            return;
+        // If connection/discovery/subscription failed partway through,
+        // disconnect cleanly and restore the UI.
+        if (device && device.gatt && device.gatt.connected) {
+            device.gatt.disconnect();
+        } else {
+            resetUI();
         }
-
-
-        const wheelRevolutions =
-            data.getUint32(
-                offset,
-                true
-            );
-
-        offset += 4;
-
-
-        const wheelEventTime =
-            data.getUint16(
-                offset,
-                true
-            );
-
-        offset += 2;
-
-
-        revolutionsElement.textContent =
-            wheelRevolutions;
-
-
-        calculateSpeed(
-            wheelRevolutions,
-            wheelEventTime
-        );
-
     }
-
-
-    if (flags & 0x02) {
-
-        if (data.byteLength < offset + 4) {
-            return;
-        }
-
-
-        const crankRevolutions =
-            data.getUint16(
-                offset,
-                true
-            );
-
-        offset += 2;
-
-
-        const crankEventTime =
-            data.getUint16(
-                offset,
-                true
-            );
-
-        offset += 2;
-
-
-        calculateCadence(
-            crankRevolutions,
-            crankEventTime
-        );
-
-    }
-
 }
 
+function handleTelemetry(event) {
+    const data = event.target.value;
 
-function calculateSpeed(
-    currentRevolutions,
-    currentEventTime
-) {
-
-    if (
-        previousWheelRevolutions === null ||
-        previousWheelEventTime === null
-    ) {
-
-        previousWheelRevolutions =
-            currentRevolutions;
-
-        previousWheelEventTime =
-            currentEventTime;
-
+    if (data.byteLength !== 12) {
+        log(`Unexpected telemetry length: ${data.byteLength} bytes (expected 12).`);
         return;
     }
 
+    const sequence = data.getUint16(0, true);
+    const accelX = data.getInt16(2, true);
+    const accelY = data.getInt16(4, true);
+    const accelZ = data.getInt16(6, true);
+    const speedRaw = data.getUint16(8, true);
+    const battery = data.getUint8(10);
+    const terrainCode = data.getUint8(11);
 
-    const revolutionDelta =
-        counterDelta(
-            currentRevolutions,
-            previousWheelRevolutions,
-            0x100000000
-        );
+    // Firmware proposal: speedRaw is hundredths of km/h.
+    const speedKmh = speedRaw / 100;
+    const speedMph = speedKmh * 0.621371;
 
+    sequenceElement.textContent = sequence;
+    accelXElement.textContent = accelX;
+    accelYElement.textContent = accelY;
+    accelZElement.textContent = accelZ;
+    speedElement.textContent = speedMph.toFixed(1);
+    batteryElement.textContent = `${battery}%`;
+    terrainElement.textContent = TERRAIN_NAMES[terrainCode] ?? `Code ${terrainCode}`;
 
-    const timeTicks =
-        counterDelta(
-            currentEventTime,
-            previousWheelEventTime,
-            0x10000
-        );
-
-
-    const timeSeconds =
-        timeTicks / 1024;
-
-
-    if (timeSeconds > 0) {
-
-        const metersPerSecond =
-            (
-                revolutionDelta *
-                WHEEL_CIRCUMFERENCE_M
-            ) /
-            timeSeconds;
-
-
-        const mph =
-            metersPerSecond * 2.236936;
-
-
-        speedElement.textContent =
-            Math.max(
-                0,
-                mph
-            ).toFixed(1);
-
-    }
-
-
-    previousWheelRevolutions =
-        currentRevolutions;
-
-    previousWheelEventTime =
-        currentEventTime;
-
+    log(
+        `Telemetry #${sequence}: ` +
+        `X=${accelX} mg, Y=${accelY} mg, Z=${accelZ} mg, ` +
+        `Speed=${speedKmh.toFixed(2)} km/h (${speedMph.toFixed(1)} mph), ` +
+        `Battery=${battery}%, Terrain=${TERRAIN_NAMES[terrainCode] ?? terrainCode}`
+    );
 }
-
-
-function calculateCadence(
-    currentRevolutions,
-    currentEventTime
-) {
-
-    if (
-        previousCrankRevolutions === null ||
-        previousCrankEventTime === null
-    ) {
-
-        previousCrankRevolutions =
-            currentRevolutions;
-
-        previousCrankEventTime =
-            currentEventTime;
-
-        return;
-    }
-
-
-    const revolutionDelta =
-        counterDelta(
-            currentRevolutions,
-            previousCrankRevolutions,
-            0x10000
-        );
-
-
-    const timeTicks =
-        counterDelta(
-            currentEventTime,
-            previousCrankEventTime,
-            0x10000
-        );
-
-
-    const timeSeconds =
-        timeTicks / 1024;
-
-
-    if (timeSeconds > 0) {
-
-        const rpm =
-            (
-                revolutionDelta /
-                timeSeconds
-            ) * 60;
-
-
-        cadenceElement.textContent =
-            Math.round(
-                Math.max(
-                    0,
-                    rpm
-                )
-            );
-
-    }
-
-
-    previousCrankRevolutions =
-        currentRevolutions;
-
-    previousCrankEventTime =
-        currentEventTime;
-
-}
-
-
-function counterDelta(
-    current,
-    previous,
-    modulus
-) {
-
-    let delta =
-        current - previous;
-
-
-    if (delta < 0) {
-        delta += modulus;
-    }
-
-
-    return delta;
-}
-
 
 function disconnectBike() {
-
-    if (
-        device &&
-        device.gatt &&
-        device.gatt.connected
-    ) {
-
-        log(
-            "Disconnecting..."
-        );
-
+    if (device && device.gatt && device.gatt.connected) {
+        log("Disconnecting...");
         device.gatt.disconnect();
-
     } else {
-
         resetUI();
-
     }
-
 }
-
 
 function handleDisconnect() {
-
-    log(
-        "BLE device disconnected."
-    );
-
+    log("BLE device disconnected.");
     resetUI();
-
 }
-
 
 function resetUI() {
+    setStatus("🔴 Disconnected");
+    connectionElement.textContent = "OFF";
 
-    setStatus(
-        "🔴 Disconnected"
-    );
+    speedElement.textContent = "--";
+    terrainElement.textContent = "--";
+    accelXElement.textContent = "--";
+    accelYElement.textContent = "--";
+    accelZElement.textContent = "--";
+    batteryElement.textContent = "--";
+    sequenceElement.textContent = "--";
 
+    connectButton.style.display = "block";
+    disconnectButton.style.display = "none";
 
-    connectionElement.textContent =
-        "OFF";
+    if (telemetryCharacteristic) {
+        telemetryCharacteristic.removeEventListener(
+            "characteristicvaluechanged",
+            handleTelemetry
+        );
+    }
 
-
-    speedElement.textContent =
-        "--";
-
-
-    cadenceElement.textContent =
-        "--";
-
-
-    revolutionsElement.textContent =
-        "--";
-
-
-    connectButton.style.display =
-        "block";
-
-
-    disconnectButton.style.display =
-        "none";
-
-
-    previousWheelRevolutions =
-        null;
-
-    previousWheelEventTime =
-        null;
-
-    previousCrankRevolutions =
-        null;
-
-    previousCrankEventTime =
-        null;
-
-
-    measurementCharacteristic =
-        null;
-
-    server =
-        null;
-
+    telemetryCharacteristic = null;
+    bikeService = null;
+    server = null;
+    device = null;
 }
-
 
 if (!navigator.bluetooth) {
-
-    log(
-        "Warning: Web Bluetooth is not available."
-    );
-
+    log("Web Bluetooth is unavailable in this browser or context.");
 } else {
-
-    log(
-        "Web Bluetooth is available."
-    );
-
+    log("Web Bluetooth is available. Connect to your BikeSense device.");
 }
-
 </script>
-
 </body>
 </html>
