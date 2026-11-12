@@ -283,7 +283,10 @@ async function connectToBike() {
 
         // A service filter requires the peripheral to advertise this service UUID.
         device = await navigator.bluetooth.requestDevice({
-            filters: [{ services: [BIKE_SERVICE_UUID] }]
+            acceptAllDevices: true,
+            optionalServices: [
+                BIKE_SERVICE_UUID
+            ]
         });
 
         log(`Selected device: ${device.name || "Unnamed device"}`);
